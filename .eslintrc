@@ -1,0 +1,16 @@
+{
+  "ecmaFeatures": {
+    "blockBindings": true
+  },
+  "env": {
+    "node": true
+  },
+  "rules": {
+    "quotes": [1, "single", "avoid-escape"],
+    "new-cap": [1, {"capIsNewExceptions": ["DDCCIDevice", "TypedError"]}],
+    "no-sequences": [0],
+    "no-unused-vars": [1],
+    "semi": [0],
+    "strict": [0]
+  }
+}

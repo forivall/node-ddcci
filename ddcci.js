@@ -1,88 +1,89 @@
 #!/usr/bin/env node
-const i2c = require('i2c')
-const _ = require('lodash')
-const debug = require('debug')('ddcci')
-const TypedError = require('error/typed')
+const I2C = require('i2c');
+const _ = require('lodash');
+const debug = require('debug')('ddcci');
+const TypedError = require('error/typed');
 
 // http://stackoverflow.com/a/23073178
 const rateLimit = function(fn, delay, context) {
-    var canInvoke = true,
-        queue = [],
-        timeout,
-        limited = function () {
-            queue.push({
-                context: context || this,
-                arguments: Array.prototype.slice.call(arguments)
-            });
-            if (canInvoke) {
-                canInvoke = false;
-                timeEnd();
-            }
-        };
-    function run(context, args) {
-        fn.apply(context, args);
-    }
-    function timeEnd() {
-        var e;
-        if (queue.length) {
-            e = queue.splice(0, 1)[0];
-            run(e.context, e.arguments);
-            timeout = setTimeout(timeEnd, delay);
-        } else
-            canInvoke = true;
-    }
-    limited.reset = function () {
-        clearTimeout(timeout);
-        queue = [];
-        canInvoke = true;
+  var canInvoke = true,
+    queue = [],
+    timeout,
+    limited = function () {
+        queue.push({
+            context: context || this,
+            arguments: Array.prototype.slice.call(arguments)
+        });
+        if (canInvoke) {
+            canInvoke = false;
+            timeEnd();
+        }
     };
-    return limited;
-}
+  function run(that, args) {
+    fn.apply(that, args);
+  }
+  function timeEnd() {
+    var e;
+    if (queue.length) {
+      e = queue.splice(0, 1)[0];
+      run(e.context, e.arguments);
+      timeout = setTimeout(timeEnd, delay);
+    } else {
+      canInvoke = true;
+    }
+  }
+  limited.reset = function () {
+      clearTimeout(timeout);
+      queue = [];
+      canInvoke = true;
+  };
+  return limited;
+};
 
-const MAGIC_1 = 0x51
-const MAGIC_2 = 0x80
+const MAGIC_1 = 0x51;
+const MAGIC_2 = 0x80;
 
-const DDCCI_COMMAND_READ = 0x01
-const DDCCI_REPLY_READ = 0x02
-const DDCCI_COMMAND_WRITE = 0x03
+const DDCCI_COMMAND_READ = 0x01;
+const DDCCI_REPLY_READ = 0x02;
+const DDCCI_COMMAND_WRITE = 0x03;
 
-const DEFAULT_DDCCI_ADDR = 0x37
+const DEFAULT_DDCCI_ADDR = 0x37;
 
-const READ_DELAY = 60, WRITE_DELAY = 60 // ms
+const READ_DELAY = 60, WRITE_DELAY = 60; // ms
 
 const ReadError = TypedError({
   type: 'read',
   message: '{title}',
   title: null
-})
+});
 
 var calculateChecksum = function(data, xor) {
   if (arguments.length < 2) { xor = 0 }
   for (var i = 0, len = data.length, x; x = data[i], i < len; i++) {
-    xor ^= x
+    xor ^= x;
   }
   return xor;
-}
+};
 
 function DDCCIDevice(bus, address) {
   if (arguments.length < 3) { address = DEFAULT_DDCCI_ADDR }
   if (!(this instanceof DDCCIDevice)) { return new DDCCIDevice(bus, address) }
-  if (bus instanceof i2c) {
-    this.bus = bus
+  if (bus instanceof I2C) {
+    this.bus = bus;
   } else {
     if (_.isNumber(bus)) { bus = '/dev/i2c-' + bus; }
-    this.bus = new i2c(address, {device: bus})
+    this.bus = new I2C(address, {device: bus});
   }
-  debug(this.bus)
+  debug(this.bus);
 }
 
 DDCCIDevice.prototype.write = function(ctrl, value, callback) {
   var payload = this.preparePayload(
     [DDCCI_COMMAND_WRITE, ctrl, (value >> 8) & 255, value & 255]
-  )
+  );
 
-  this.writePayload(payload, callback)
-}
+  this.writePayload(payload, callback);
+};
 
 // TODO
 
@@ -154,39 +155,39 @@ DDCCIDevice.prototype.write = function(ctrl, value, callback) {
 // contrast = control_property(0x12)
 
 DDCCIDevice.prototype.writePayload = rateLimit(function(payload, callback) {
-  this.bus.write(payload, callback)
-}, WRITE_DELAY)
+  this.bus.write(payload, callback);
+}, WRITE_DELAY);
 
 DDCCIDevice.prototype.preparePayload = function(data) {
-  var addr = this.bus.address
-  var payload = [MAGIC_1, MAGIC_2 | data.length]
-  var xor
+  var addr = this.bus.address;
+  var payload = [MAGIC_1, MAGIC_2 | data.length];
+  var xor;
 
   if (data[0] === DDCCI_COMMAND_READ) {
-    xor = addr << 1 | 1
+    xor = addr << 1 | 1;
   } else {
-    xor = addr << 1
+    xor = addr << 1;
   }
 
-  payload.push.apply(payload, data)
+  payload.push.apply(payload, data);
 
-  xor = calculateChecksum(payload, xor)
+  xor = calculateChecksum(payload, xor);
 
-  payload.push(xor)
-  debug('payload: ' + payload.map(function(b) {return b.toString(16)}).join(' '))
-  return payload
-}
+  payload.push(xor);
+  debug('payload: ' + payload.map(function(b) {return b.toString(16)}).join(' '));
+  return payload;
+};
 if (require.main === module) {
   // You can obtain your bus id using `i2cdetect -l` or `ddccontrol -p`
-  d = DDCCIDevice(0)
+  var d = DDCCIDevice(0);
 
-  console.log('Demo 1 ...')
+  console.log('Demo 1 ...');
   // d.read(0x41, function(err, res) {
   //   console.log(err && err.stack, res)
   //   if(err) { return }
 
     d.write(0x41, 17, function(err, res) {
-      console.log(err && err.stack, res)
-    })
+      console.log(err && err.stack, res);
+    });
   // })
 }
